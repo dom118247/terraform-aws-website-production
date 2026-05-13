@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write
-  contents: read
+  id-token: write # allows GitHub to generate an OIDC JWT token for the workflow
+  contents: read # Allows the workflow to read your repository contents
 
 jobs:
   test:
