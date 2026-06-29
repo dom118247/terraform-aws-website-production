@@ -1,6 +1,8 @@
 # My Third Space — AWS Infrastructure
 
-This is my production based project for my website [mythirdspace.co.uk](https://mythirdspace.co.uk) which is based as a UK community events platform to connect people with local venues and experiences. Built as a DevOps portfolio project demonstrating end-to-end infrastructure as code using terraform.
+This is my production based project for my website www.mythirdspace.co.uk which is based as a UK community events platform to connect people with local venues and experiences. Built as a DevOps portfolio project demonstrating end-to-end infrastructure as code using terraform.
+
+The website is not active and the domain is only used to run this project (forgive me... I don't think I could stomach the cloud bill), I have attached screenshots in the readme below showing the website working and the infra in action when it was deployed to confirm it was working (before I aggressively hit terraform destroy so my bank balance sighs in relief).
 
 ## What it does
 
