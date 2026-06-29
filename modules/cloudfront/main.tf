@@ -14,24 +14,41 @@ resource "aws_acm_certificate" "website_acm_certificate" { # Requests a TLS cert
     }
 }
 
-resource "aws_cloudfront_origin_access_control" "website_access_control" { # OAC = enforces strict, authenticated access between the CDN and backend resources (e.g. s3), If the CDN server does not have the file, it securely fetches it from your backend (the Origin, like an S3 bucket or EC2 instance) and caches it for the next user | Creates the OAC identity — the "badge" CloudFront shows to S3 to prove who it is. S3 checks this badge against the bucket policy before allowing access. Without it, S3 has no way to verify the request is genuinely from your CloudFront distribution. 
+resource "aws_cloudfront_origin_access_control" "website_access_control" { # OAC = enforces strict, authenticated access between the CDN and backend resources (e.g. s3), If the CDN server does not have the file, it securely fetches it from your backend (the Origin, like an S3 bucket or EC2 instance) and caches it for the next user | Creates the OAC identity — the "badge" CloudFront shows to S3 to prove who it is. S3 checks this badge against the bucket policy before allowing access. Without it, S3 has no way to verify the request is genuinely from your CloudFront distribution.
     name                              = "mythirdspace-oac" # local name
     origin_access_control_origin_type = "s3" # origin type is S3, as CloudFront is fetching from an S3 bucket
     signing_behavior                  = "always" # every single request CloudFront makes to S3 gets signed
     signing_protocol                  = "sigv4" # SigV4 is AWS's standard request signing algorithm
 }
 
+resource "aws_route53_record" "cert_validation" {
+    for_each = { # dvo = domain validation option
+        for dvo in aws_acm_certificate.website_acm_certificate.domain_validation_options : dvo.domain_name => # "for each dvo in this list  :  then produce this key => value"
+        {                                                                           # KEY -> dvo.domain_name => { VALUES -> name, type, record }
+            name    = dvo.resource_record_name
+            type    = dvo.resource_record_type
+            record  = dvo.resource_record_value
+        }
+    }
+
+    zone_id = var.zone_id # Which hosted zone to create the record in
+    name    = each.value.name # www & without
+    type    = each.value.type # CNAME
+    records = [each.value.record] # CNAME value ACM wants to see in DNS, TF expects list
+    ttl     = 60 # how long DNS servers cache this record before checking for updates
+}
+
 resource "aws_acm_certificate_validation" "website" {
-  # Tells Terraform to go to dns.tf, grab the CNAME records that were created there to prove domain ownership, and wait until ACM confirms- 
+  # Tells Terraform to go to dns.tf, grab the CNAME records that were created there to prove domain ownership, and wait until ACM confirms-
   # the cert is fully issued. Nothing else moves forward until this is done (~1-2 min).
     provider                = aws.us_east_1
     certificate_arn         = aws_acm_certificate.website_acm_certificate.arn
-    validation_record_fqdns = [for r in aws_route53_record.cert_validation : r.fqdn] # loops over the CNAME records in dns.tf and passes their FQDNs to confirm validation is complete
+    validation_record_fqdns = [for r in aws_route53_record.cert_validation : r.fqdn] # loops over the CNAME records and passes their FQDNs to confirm validation is complete
 }
 
 resource "aws_cloudfront_distribution" "website" { # Starts once cert validation complete, a distribution tells CloudFront where you want content to be delivered from, and the details about how to track and manage content delivery.
     origin {
-        domain_name              = aws_s3_bucket.website.bucket_regional_domain_name # regional S3 URL — required for OAC (not the website endpoint)
+        domain_name              = var.s3_bucket_regional_domain_name # regional S3 URL — required for OAC (not the website endpoint)
         origin_id                = "s3-mythirdspace-website-prod" # unique label to identify this origin within the distribution
         origin_access_control_id = aws_cloudfront_origin_access_control.website_access_control.id # attaches the OAC badge so S3 accepts CloudFront requests
     }
@@ -41,6 +58,7 @@ resource "aws_cloudfront_distribution" "website" { # Starts once cert validation
     aliases             = [var.domain_name, var.www_domain_name] # both mythirdspace.co.uk and www on one distribution
     default_root_object = "index.html"
     price_class         = "PriceClass_100"  # US + Europe edge locations only — cheapest tier
+    web_acl_id          = var.waf_web_acl_arn
 
     default_cache_behavior {
       target_origin_id       = "s3-mythirdspace-website-prod"
@@ -84,8 +102,32 @@ resource "aws_cloudfront_distribution" "website" { # Starts once cert validation
     depends_on = [aws_acm_certificate_validation.website] # doesn't create CF distribution until cert validation complete
 }
 
+# S3 bucket policy — allows CloudFront OAC to read from the bucket
+# Lives here (not in s3 module) because it references the CloudFront distribution ARN
+resource "aws_s3_bucket_policy" "website" {
+    bucket = var.s3_bucket_id
+
+    policy = jsonencode({
+        Version = "2012-10-17"
+        Statement = [{
+            Sid       = "AllowCloudFrontOAC" # label/description for the statement
+            Effect    = "Allow"
+            Principal = { # Who this applies to — CloudFront service
+                Service = "cloudfront.amazonaws.com"
+            }
+            Action    = "s3:GetObject"
+            Resource  = "${var.s3_bucket_arn}/*" #all resources in bucket
+            Condition = {
+                StringEquals = {
+                    "AWS:SourceArn" = aws_cloudfront_distribution.website.arn
+                }
+            }
+        }]
+    })
+}
+
 /*
-1. ACM Certificate — requests a TLS cert for mythirdspace.co.uk and www.mythirdspace.co.uk. Exists but not issued yet — AWS is waiting for domain ownership proof from dns.tf.
+1. ACM Certificate — requests a TLS cert for mythirdspace.co.uk and www.mythirdspace.co.uk. Exists but not issued yet — AWS is waiting for domain ownership proof from cert_validation records.
 
 2. OAC — creates the badge CloudFront shows to S3 to prove who it is. Created in parallel with the cert as it has no dependencies.
 

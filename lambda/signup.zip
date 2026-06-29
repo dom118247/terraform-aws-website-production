@@ -1,0 +1,3 @@
+cd lambda
+pip install psycopg2-binary -t .
+zip -r signup.zip .

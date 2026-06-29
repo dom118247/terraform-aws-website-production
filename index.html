@@ -543,40 +543,56 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
+  var API_ENDPOINT = 'YOUR_API_GATEWAY_URL'; // replace after terraform apply with api_endpoint output
+
   // Hero email form
   document.getElementById('hero-form').addEventListener('submit', function(e) {
     e.preventDefault();
     var email = document.getElementById('hero-email').value;
-    var subject = encodeURIComponent('My Third Space — Waitlist Signup');
-    var body = encodeURIComponent('New waitlist signup:\n\nEmail: ' + email);
-    window.location.href = 'mailto:dommo1998@gmail.com?subject=' + subject + '&body=' + body;
     var btn = this.querySelector('button[type="submit"]');
-    btn.textContent = "You're on the list!";
-    btn.style.background = '#2D4A3E';
-    setTimeout(function() { btn.textContent = 'Get early access'; btn.style.background = ''; }, 3000);
+
+    fetch(API_ENDPOINT + '/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'waitlist', email: email })
+    })
+    .then(function() {
+      btn.textContent = "You're on the list!";
+      btn.style.background = '#2D4A3E';
+      setTimeout(function() { btn.textContent = 'Get early access'; btn.style.background = ''; }, 3000);
+    })
+    .catch(function() {
+      btn.textContent = 'Something went wrong';
+      setTimeout(function() { btn.textContent = 'Get early access'; btn.style.background = ''; }, 3000);
+    });
   });
 
   // Venue signup form
   document.getElementById('venue-form').addEventListener('submit', function(e) {
     e.preventDefault();
     var inputs = e.target.querySelectorAll('input, select');
-    var venueName = inputs[0].value;
-    var yourName  = inputs[1].value;
-    var email     = inputs[2].value;
-    var type      = inputs[3].value;
-    var subject = encodeURIComponent('My Third Space — Venue Registration');
-    var body = encodeURIComponent(
-      'New venue registration:\n\n' +
-      'Venue name: ' + venueName + '\n' +
-      'Contact name: ' + yourName + '\n' +
-      'Email: ' + email + '\n' +
-      'Type: ' + type
-    );
-    window.location.href = 'mailto:dommo1998@gmail.com?subject=' + subject + '&body=' + body;
     var btn = this.querySelector('button[type="submit"]');
-    btn.textContent = "Thanks — we'll be in touch!";
-    btn.style.background = '#2D4A3E';
-    setTimeout(function() { btn.textContent = 'Register as a founding venue'; btn.style.background = ''; }, 3000);
+
+    fetch(API_ENDPOINT + '/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type:         'venue',
+        venue_name:   inputs[0].value,
+        contact_name: inputs[1].value,
+        email:        inputs[2].value,
+        venue_type:   inputs[3].value
+      })
+    })
+    .then(function() {
+      btn.textContent = "Thanks — we'll be in touch!";
+      btn.style.background = '#2D4A3E';
+      setTimeout(function() { btn.textContent = 'Register as a founding venue'; btn.style.background = ''; }, 3000);
+    })
+    .catch(function() {
+      btn.textContent = 'Something went wrong';
+      setTimeout(function() { btn.textContent = 'Register as a founding venue'; btn.style.background = ''; }, 3000);
+    });
   });
 
   // Scroll buttons

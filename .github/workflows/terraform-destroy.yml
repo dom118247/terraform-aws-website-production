@@ -1,0 +1,44 @@
+name: Terraform Destroy
+
+on:
+  workflow_dispatch: # manual trigger only
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::872515271328:role/PipelineRole
+          aws-region: eu-west-2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Destroy
+        run: |
+          terraform destroy -auto-approve \
+            -target="module.api_gateway" \
+            -target="module.lambda" \
+            -target="module.waf" \
+            -target="module.monitoring" \
+            -target="module.ses" \
+            -target="module.backup" \
+            -target="module.cloudfront" \
+            -target="module.dns" \
+            -target="module.rds" \
+            -target="module.security_groups" \
+            -target="module.vpc" \
+            -target="module.s3"
